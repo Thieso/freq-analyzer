@@ -21,7 +21,6 @@ bool blinkState = false;
 int16_t az;
 unsigned long time = 0;     // time value 
 unsigned long time_now = 0;     // time value 
-int period = 1;        // period at which to send the signal
 
 
 // ================================================================
@@ -62,26 +61,20 @@ void loop() {
     // get time in milliseconds
     time = millis();
 
-    // if time passed the period, send data over serial
-    if (time >= time_now + period) {
-        // time += period;
-        // set time 
-        time_now = millis();
-        // send data as byte array over serial
-        byte byte_data_t[4];
-        byte_data_t[0] = time & 255;
-        byte_data_t[1] = (time >> 8) & 255;
-        byte_data_t[2] = (time >> 16) & 255;
-        byte_data_t[3] = (time >> 32) & 255;
-        byte byte_data_z[2];
-        byte_data_z[0] = az & 255;
-        byte_data_z[1] = (az >> 8) & 255;
-        byte buf[6] = {byte_data_t[0], byte_data_t[1], byte_data_t[2], byte_data_t[3],
-                        byte_data_z[0], byte_data_z[1]};
-        Serial.write(buf, 6);
+    // send data as byte array over serial
+    byte byte_data_t[4];
+    byte_data_t[0] = time & 255;
+    byte_data_t[1] = (time >> 8) & 255;
+    byte_data_t[2] = (time >> 16) & 255;
+    byte_data_t[3] = (time >> 32) & 255;
+    byte byte_data_z[2];
+    byte_data_z[0] = az & 255;
+    byte_data_z[1] = (az >> 8) & 255;
+    byte buf[6] = {byte_data_t[0], byte_data_t[1], byte_data_t[2], byte_data_t[3],
+                    byte_data_z[0], byte_data_z[1]};
+    Serial.write(buf, 6);
 
-        // blink LED to indicate activity
-        blinkState = !blinkState;
-        digitalWrite(LED_PIN, blinkState);
-    }
+    // blink LED to indicate activity
+    blinkState = !blinkState;
+    digitalWrite(LED_PIN, blinkState);
 }

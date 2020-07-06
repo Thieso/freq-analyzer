@@ -26,8 +26,8 @@ class serialPlot:
         self.isRun        = True                                           # boolean to communicate closing event with the background thread
         self.isReceiving  = False                                          # boolean to see if data gets send
         self.thread       = None                                           # thread for reading data from arduino
-        self.newPoints    = 20                                             # number of points at which the plot will be renewed
-        self.nfft         = 200                                            # number of points used for fft
+        self.newPoints    = 50                                             # number of points at which the plot will be renewed
+        self.nfft         = 500                                            # number of points used for fft
         self.data         = np.arange(self.nfft * 2).reshape(self.nfft, 2) # data array
         self.time         = np.arange(self.nfft)                           # time array
         # start serial connection
@@ -51,15 +51,17 @@ class serialPlot:
     ''' function to prepare acceleration data for plotting by doing a fourier
     transformation '''
     def getSerialData(self, frame, line):
-        time.sleep(0.003)
         # get the time values from the data array
         self.time = self.data[:, 0]
         self.time = self.time - self.time[0]
         # find the mean time difference to build the frequency vector later on
         dT = self.time[len(self.time) - 1] / len(self.time) 
+        dT = max(self.time) / len(self.time)
+        # print(dT)
         dT = dT / 1000
         # get the acceleration in z from the data array
         tmp_data = self.data[:, 1] * 16 / 32767
+        # print(tmp_data)
         # perform the fft and limit it to one side
         self.freqData = np.fft.fft(tmp_data)/len(tmp_data)
         self.freqData = np.abs(self.freqData)
