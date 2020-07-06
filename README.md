@@ -11,7 +11,7 @@ The sensor was attached to a motorcycle license plate as can be seen in this
 setup photo. The Arduino is shown in the foreground connected to the MPU6050 in
 the background. 
 
-<img src="./results/setup.jpg" width="100">
+<img src="./results/setup.jpg" width="400">
 
 The results of the frequency analysis are shown in the following 2 GIFs. In the
 first GIF the license plate is excited by hand for short intervals. The plate is
