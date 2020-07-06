@@ -57,11 +57,9 @@ class serialPlot:
         # find the mean time difference to build the frequency vector later on
         dT = self.time[len(self.time) - 1] / len(self.time) 
         dT = max(self.time) / len(self.time)
-        # print(dT)
         dT = dT / 1000
         # get the acceleration in z from the data array
         tmp_data = self.data[:, 1] * 16 / 32767
-        # print(tmp_data)
         # perform the fft and limit it to one side
         self.freqData = np.fft.fft(tmp_data)/len(tmp_data)
         self.freqData = np.abs(self.freqData)
