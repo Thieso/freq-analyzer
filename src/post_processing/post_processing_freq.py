@@ -18,11 +18,11 @@ import copy
 # -----------------------------------------------------------------------------
 
 class serialPlot:
-    def __init__(self, serialPort = '/dev/ttyUSB0', serialBaud = 115200, dataNumBytes = 2):
+    def __init__(self, serialPort = '/dev/ttyUSB0', serialBaud = 115200, dataNumBytes = 2, kalman = 1):
         self.port         = serialPort                                     # serial port with the arduino
         self.baud         = serialBaud                                     # baud rate of communication with the arduino
         self.dataNumBytes = dataNumBytes                                   # number of data bytes of each acceleartion value
-        self.rawData      = bytearray(4 + 1 * dataNumBytes)                # raw data from the arduino
+        self.rawData      = bytearray(4 + 2 * dataNumBytes)                # raw data from the arduino
         self.isRun        = True                                           # boolean to communicate closing event with the background thread
         self.isReceiving  = False                                          # boolean to see if data gets send
         self.thread       = None                                           # thread for reading data from arduino
@@ -30,6 +30,12 @@ class serialPlot:
         self.nfft         = 500                                            # number of points used for fft
         self.data         = np.arange(self.nfft * 2).reshape(self.nfft, 2) # data array
         self.time         = np.arange(self.nfft)                           # time array
+        # set data index based on wether filtered data is wanted
+        if kalman == 1:
+            self.dataID = 2
+        else:
+            self.dataID = 1
+
         # start serial connection
         print('Trying to connect to: ' + str(serialPort) + ' at ' + str(serialBaud) + ' BAUD.')
         try:
@@ -55,11 +61,11 @@ class serialPlot:
         self.time = self.data[:, 0]
         self.time = self.time - self.time[0]
         # find the mean time difference to build the frequency vector later on
-        dT = self.time[len(self.time) - 1] / len(self.time) 
+        dT = self.time[len(self.time) - 1] / len(self.time)
         dT = max(self.time) / len(self.time)
         dT = dT / 1000
         # get the acceleration in z from the data array
-        tmp_data = self.data[:, 1] * 16 / 32767
+        tmp_data = (self.data[:, 1] / 2048 ) + 0.34
         # perform the fft and limit it to one side
         self.freqData = np.fft.fft(tmp_data)/len(tmp_data)
         self.freqData = np.abs(self.freqData)
@@ -81,9 +87,14 @@ class serialPlot:
             self.isReceiving = True
             for i in range(self.newPoints):
                 self.serialConnection.readinto(self.rawData)
-                values = struct.unpack('=Lh', self.rawData)
+                values = struct.unpack('=Lhh', self.rawData)
+                # extract the needed data from the received values (either
+                # filered or not filtered)
+                tmp = np.arange(2)
+                tmp[0] = values[0]
+                tmp[1] = values[self.dataID]
                 self.data = shift(self.data, [-1, 0])
-                self.data[len(self.data)-1, :] = np.transpose(np.array(values))
+                self.data[len(self.data)-1, :] = np.transpose(tmp)
 
     ''' End the program by ending the thread and the serial connection '''
     def close(self):
@@ -94,16 +105,17 @@ class serialPlot:
 
 ''' main function to run the program '''
 def main():
-    portName     = '/dev/ttyUSB0'                               # port to use for arduino communcation
-    baudRate     = 115200                                       # baud rate for communication with arduino
-    dataNumBytes = 2                                            # number of bytes of 1 acceleration value point
-    s            = serialPlot(portName, baudRate, dataNumBytes) # initializes all required variables
+    portName     = '/dev/ttyUSB0'                                       # port to use for arduino communcation
+    baudRate     = 115200                                               # baud rate for communication with arduino
+    dataNumBytes = 2                                                    # number of bytes of 1 acceleration value point
+    kalman       = 1                                                    # set kalman filter
+    s            = serialPlot(portName, baudRate, dataNumBytes, kalman) # initializes all required variables
 
     # start background thread for serial communcation
     s.readSerialStart()
 
     # Period at which the plot animation updates [ms]
-    pltInterval = 50 
+    pltInterval = 50
 
     # figure and axis for plotting
     xmin        = 0   # [Hz]
@@ -118,7 +130,7 @@ def main():
 
     # start the animated plot
     lineLabel = ['Z']
-    style = 'r-'  
+    style = 'r-'
     line = []
     line.append(ax.plot([], [], style, label=lineLabel[0])[0])
     anim = animation.FuncAnimation(fig, s.getSerialData, fargs=(line), interval=pltInterval)
