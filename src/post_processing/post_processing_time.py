@@ -16,7 +16,7 @@ import copy
 # -----------------------------------------------------------------------------
 
 class serialPlot:
-    def __init__(self, serialPort = '/dev/ttyUSB0', serialBaud = 115200, plotLength = 100, dataNumBytes = 2, numPlots = 2):
+    def __init__(self, serialPort = '/dev/ttyUSB0', serialBaud = 115200, plotLength = 100, dataNumBytes = 2, numPlots = 1):
         self.port          = serialPort                                               # serial port with the arduino
         self.baud          = serialBaud                                               # baud rate of communication with the arduino
         self.plotMaxLength = plotLength                                               # max number of data points in plot
@@ -60,7 +60,7 @@ class serialPlot:
         timeText.set_text('Plot Interval = ' + str(self.plotTimer) + 'ms')
         # unpack the raw data (first bytes are the time the others are the accel
         # values)
-        values = struct.unpack('=Lhh', self.rawData)
+        values = struct.unpack('=Lh', self.rawData)
         # get the time 
         time_value = values[0]
         self.time.append(time_value)

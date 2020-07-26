@@ -2,3 +2,4 @@
 include/*
 test/*
 tags
+.vimspector.json

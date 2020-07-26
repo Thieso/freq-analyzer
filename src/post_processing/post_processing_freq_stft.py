@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-from scipy.ndimage.interpolation import shift
-from threading import Thread
 import serial
 import time
 import re
@@ -11,6 +9,9 @@ import matplotlib.animation as animation
 import scipy.fftpack
 import struct
 import copy
+from scipy.ndimage.interpolation import shift
+from threading import Thread, Lock
+from scipy import signal
 
 # -----------------------------------------------------------------------------
 # Frequency analysis of acceleration signal from acceleration data received over
@@ -19,18 +20,24 @@ import copy
 
 class serialPlot:
     def __init__(self, serialPort = '/dev/ttyUSB0', serialBaud = 115200, dataNumBytes = 2, kalman = 1):
-        self.port         = serialPort                                     # serial port with the arduino
-        self.baud         = serialBaud                                     # baud rate of communication with the arduino
-        self.dataNumBytes = dataNumBytes                                   # number of data bytes of each acceleartion value
-        self.rawData      = bytearray(4 + 1 * dataNumBytes)                # raw data from the arduino
-        self.isRun        = True                                           # boolean to communicate closing event with the background thread
-        self.isReceiving  = False                                          # boolean to see if data gets send
-        self.thread       = None                                           # thread for reading data from arduino
-        self.thread_data       = None                                           # thread for reading data from arduino
-        self.newPoints    = 20                                             # number of points at which the plot will be renewed
-        self.nfft         = 500                                            # number of points used for fft
-        self.data         = np.arange(self.nfft * 2).reshape(self.nfft, 2) # data array
-        self.time         = np.zeros(self.nfft)                           # time array
+        self.port         = serialPort                                    # serial port with the arduino
+        self.baud         = serialBaud                                    # baud rate of communication with the arduino
+        self.dataNumBytes = dataNumBytes                                  # number of data bytes of each acceleartion value
+        self.rawData      = bytearray(4 + 1 * dataNumBytes)               # raw data from the arduino
+        self.isRun        = True                                          # boolean to communicate closing event with the background thread
+        self.isReceiving  = False                                         # boolean to see if data gets send
+        self.thread       = None                                          # thread for reading data from arduino
+        self.thread_data   = None                                          # thread for computing the ffts
+        self.newPoints    = 20                                            # number of points at which the plot will be renewed
+        self.nfft         = 200                                           # number of points used for fft
+        self.nr_ffts      = 20                                            # number of ffts that are shown in the spectrogramm
+        self.fftMatrix    = np.zeros((int(self.nfft / 2), self.nr_ffts))  # frequency matrix to hold the ffts
+        self.data         = np.zeros(self.nfft * 2).reshape(self.nfft, 2) # data array
+        self.time         = np.arange(self.nfft)                          # time array
+        self.dT           = 0.005 # sampling time
+        self.desired_time = np.arange(0, self.nfft * self.dT, self.dT) # desired time array for interpolated data
+        self.total_time   = np.arange(self.nr_ffts)                       # total time array for stft
+        self.f            = np.arange(0, 100, 100 / self.nfft / 2)              # frequency vector
         # set data index based on wether filtered data is wanted
         if kalman == 1:
             self.dataID = 2
@@ -71,32 +78,40 @@ class serialPlot:
                 tmp[1] = values[self.dataID]
                 self.data = shift(self.data, [-1, 0])
                 self.data[len(self.data)-1, :] = np.transpose(tmp)
-                time.sleep(0.001)
+                time.sleep(0.0001)
+            # get the time values from the data array
+            self.time = self.data[:, 0]
+            # set initial time to zero
+            self.time = self.time - self.time[0]
+            # get the acceleration in z from the data array
+            tmp_data = (self.data[:, 1] / 2048 ) + 0.34
+            # interpolate the data to be evenly spaced
+            tmp_data = np.interp(self.desired_time, self.time/1000, tmp_data)
+            # perform the fft and limit it to one side
+            self.freqData = np.fft.fft(tmp_data)/len(tmp_data)
+            self.freqData = np.abs(self.freqData)
+            self.freqData = 2 * self.freqData[range(int(len(self.data)/2))]
+            # set dc component to zero
+            self.freqData[0] = 0
+            # convert to log scale if wanted
+            # self.freqData = 20 * np.log10(self.freqData)
+            # build the frequency vector
+            self.f = np.arange(int(len(self.data)/2)) / self.dT / len(self.data)
+            # append frequency data (FFT) to the matrix
+            self.fftMatrix = shift(self.fftMatrix, [0, -1])
+            self.fftMatrix[:, self.fftMatrix.shape[1]-1] = self.freqData
+            # TODO build total time vector 
+            self.total_time = np.arange(self.nr_ffts)
+
 
     ''' function to prepare acceleration data for plotting by doing a fourier
     transformation '''
-    def getSerialData(self, frame, line):
-        # get the time values from the data array
-        self.time = self.data[:, 0]
-        self.time = self.time - self.time[0]
-        # find the mean time difference to build the frequency vector later on
-        dT = max(self.time) / len(self.time)
-        dT = dT / 1000
-        dT = max(0.001, dT)
-        # get the acceleration in z from the data array
-        tmp_data = (self.data[:, 1] / 2048 ) + 0.34
-        # perform the fft and limit it to one side
-        self.freqData = np.fft.fft(tmp_data)/len(tmp_data)
-        self.freqData = np.abs(self.freqData)
-        self.freqData = 2 * self.freqData[range(int(len(self.data)/2))]
-        # set dc component to zero
-        self.freqData[0] = 0
-        # convert to log scale if wanted
-        # self.freqData = 20 * np.log10(self.freqData)
-        # build the frequency vector
-        self.f = np.arange(int(len(self.data)/2)) / dT / len(self.data)
+    def getSerialData(self, frame, plot, ax):
         # set data for plotting
-        line.set_data(self.f, self.freqData)
+        # plot.remove()
+        ax.clear()
+        plot = ax.pcolor(self.total_time, self.f, self.fftMatrix, vmin=0, vmax=5)
+        return plot
 
     ''' background thread for reading data from the arduino (acceleration data) '''
     def backgroundThread(self):    # retrieve data
@@ -105,6 +120,7 @@ class serialPlot:
         while (self.isRun):
             self.isReceiving = True
             self.serialConnection.readinto(self.rawData)
+
 
     ''' End the program by ending the thread and the serial connection '''
     def close(self):
@@ -124,6 +140,8 @@ def main():
 
     # start background thread for serial communcation
     s.readSerialStart()
+
+    # start thread for fft calculation
     s.dataThreadStart()
 
     # Period at which the plot animation updates [ms]
@@ -131,21 +149,20 @@ def main():
 
     # figure and axis for plotting
     xmin        = 0   # [Hz]
-    xmax        = 300 # [Hz]
+    xmax        = 100 # [Hz]
     ymin        = 0   # [g]
-    ymax        = 5  # [g]
+    ymax        = 1000  # [g]
     fig         = plt.figure(figsize = (10, 8))
     ax          = plt.axes(xlim = (xmin, xmax), ylim = (float(ymin - (ymax - ymin) / 10), float(ymax + (ymax - ymin) / 10)))
     ax.set_title('Accelerometer (frequency domain)')
-    ax.set_xlabel("Frequency [Hz]")
-    ax.set_ylabel("Acceleration [g]")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Frequency [Hz]")
 
     # start the animated plot
     lineLabel = ['Z']
     style = 'r-'
-    line = []
-    line.append(ax.plot([], [], style, label=lineLabel[0])[0])
-    anim = animation.FuncAnimation(fig, s.getSerialData, fargs=(line), interval=pltInterval)
+    plot = ax.pcolor(np.zeros((s.nfft, s.nr_ffts)))
+    anim = animation.FuncAnimation(fig, s.getSerialData, fargs=(plot, ax), interval=pltInterval)
     plt.show()
 
     # close the serial plot class

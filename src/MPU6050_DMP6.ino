@@ -10,8 +10,6 @@
     #include "Wire.h"
 #endif
 
-#define KALMAN_FILTER
-
 // mpu6050 object for interaction with the sensor
 MPU6050 accelgyro;
 
@@ -25,18 +23,17 @@ unsigned long time = 0;     // time value
 unsigned long time_now = 0;     // time value 
 byte byte_data_t[4]; // byte array for time
 byte byte_data_z[2]; // byte array for acceleration
+/*bool kalman = false;*/
 
 
 // set kalman filter parameters
-#ifdef KALMAN_FILTER
-    float Q = 100;
-    float R = 10;
-    float P = 0;
-    float x = 0;
-    float S, K, v;
-    int16_t az_kalman;
-    byte byte_data_k[2]; // byte array for filtered acceleration
-#endif
+/*float Q = 100;*/
+/*float R = 10;*/
+/*float P = 0;*/
+/*float x = 0;*/
+/*float S, K, v;*/
+/*int16_t az_kalman;*/
+/*byte byte_data_k[2]; // byte array for filtered acceleration*/
 
 
 // ================================================================
@@ -80,21 +77,21 @@ void loop() {
     // get time in milliseconds
     time = millis();
 
-    #ifdef KALMAN_FILTER
-        // predict
-        x = x;
-        P = P + Q;
-        // update
-        v = (float) az - x;
-        S = P + R;
-        K = P / S;
-        x = x + K * v;
-        P = P - K * S * K;
-        byte byte_data_k[2];
-        az_kalman = (int16_t) x;
-        byte_data_k[0] = az_kalman & 255;
-        byte_data_k[1] = (az_kalman >> 8) & 255;
-    #endif
+    /*if (kalman == true) {*/
+        /*// predict*/
+        /*x = x;*/
+        /*P = P + Q;*/
+        /*// update*/
+        /*v = (float) az - x;*/
+        /*S = P + R;*/
+        /*K = P / S;*/
+        /*x = x + K * v;*/
+        /*P = P - K * S * K;*/
+        /*byte byte_data_k[2];*/
+        /*az_kalman = (int16_t) x;*/
+        /*byte_data_k[0] = az_kalman & 255;*/
+        /*byte_data_k[1] = (az_kalman >> 8) & 255;*/
+    /*}*/
 
     // send data as byte array over serial
     byte_data_t[0] = time & 255;
@@ -103,16 +100,16 @@ void loop() {
     byte_data_t[3] = (time >> 32) & 255;
     byte_data_z[0] = az & 255;
     byte_data_z[1] = (az >> 8) & 255;
-    #ifdef KALMAN_FILTER
-        byte buf[8] = {byte_data_t[0], byte_data_t[1], byte_data_t[2], byte_data_t[3],
-                        byte_data_z[0], byte_data_z[1],
-                        byte_data_k[0], byte_data_k[1]};
-        Serial.write(buf, 8);
-    #else
-        byte buf[6] = {byte_data_t[0], byte_data_t[1], byte_data_t[2], byte_data_t[3],
-                        byte_data_z[0], byte_data_z[1]};
-        Serial.write(buf, 6);
-    #endif
+    /*if (kalman == true) {*/
+        /*byte buf[8] = {byte_data_t[0], byte_data_t[1], byte_data_t[2], byte_data_t[3],*/
+                        /*byte_data_z[0], byte_data_z[1],*/
+                        /*byte_data_k[0], byte_data_k[1]};*/
+        /*Serial.write(buf, 8);*/
+    /*} else {*/
+    byte buf[6] = {byte_data_t[0], byte_data_t[1], byte_data_t[2], byte_data_t[3],
+                    byte_data_z[0], byte_data_z[1]};
+    Serial.write(buf, 6);
+    /*}*/
 
     // blink LED to indicate activity
     blinkState = !blinkState;
