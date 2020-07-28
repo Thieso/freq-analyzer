@@ -28,9 +28,12 @@ class serialPlot:
         self.thread       = None                                           # thread for reading data from arduino
         self.thread_data       = None                                           # thread for reading data from arduino
         self.newPoints    = 20                                             # number of points at which the plot will be renewed
-        self.nfft         = 500                                            # number of points used for fft
+        self.nfft         = 200                                            # number of points used for fft
         self.data         = np.arange(self.nfft * 2).reshape(self.nfft, 2) # data array
         self.time         = np.zeros(self.nfft)                           # time array
+        self.dT           = 0.005 # sampling time
+        self.desired_time = np.arange(0, self.nfft * self.dT, self.dT) # desired time array for interpolated data
+        self.old_value = 0
         # set data index based on wether filtered data is wanted
         if kalman == 1:
             self.dataID = 2
@@ -64,14 +67,17 @@ class serialPlot:
         # extract the needed data from the received values (either
         # filered or not filtered)
         while (self.isRun):
-            for i in range(self.newPoints):
+            i = 0
+            while i < self.newPoints:
                 values = struct.unpack('=Lh', self.rawData)
-                tmp = np.arange(2)
-                tmp[0] = values[0]
-                tmp[1] = values[self.dataID]
-                self.data = shift(self.data, [-1, 0])
-                self.data[len(self.data)-1, :] = np.transpose(tmp)
-                time.sleep(0.001)
+                if values[0] != self.old_value or self.isRun == False:
+                    self.old_value = values[0]
+                    i = i + 1
+                    tmp = np.arange(2)
+                    tmp[0] = values[0]
+                    tmp[1] = values[self.dataID]
+                    self.data = shift(self.data, [-1, 0])
+                    self.data[len(self.data)-1, :] = np.transpose(tmp)
 
     ''' function to prepare acceleration data for plotting by doing a fourier
     transformation '''
@@ -79,22 +85,17 @@ class serialPlot:
         # get the time values from the data array
         self.time = self.data[:, 0]
         self.time = self.time - self.time[0]
-        # find the mean time difference to build the frequency vector later on
-        dT = max(self.time) / len(self.time)
-        dT = dT / 1000
-        dT = max(0.001, dT)
         # get the acceleration in z from the data array
         tmp_data = (self.data[:, 1] / 2048 ) + 0.34
+        # interpolate the data to be evenly spaced
+        # tmp_data = np.interp(self.desired_time, self.time/1000, tmp_data)
         # perform the fft and limit it to one side
-        self.freqData = np.fft.fft(tmp_data)/len(tmp_data)
-        self.freqData = np.abs(self.freqData)
-        self.freqData = 2 * self.freqData[range(int(len(self.data)/2))]
+        self.freqData = np.abs(np.fft.fft(tmp_data)/len(tmp_data))
+        self.freqData = 2 * self.freqData[0:int(len(self.data)/2)]
         # set dc component to zero
         self.freqData[0] = 0
-        # convert to log scale if wanted
-        # self.freqData = 20 * np.log10(self.freqData)
         # build the frequency vector
-        self.f = np.arange(int(len(self.data)/2)) / dT / len(self.data)
+        self.f = np.arange(int(len(self.data)/2)) / self.dT / len(self.data)
         # set data for plotting
         line.set_data(self.f, self.freqData)
 
@@ -131,7 +132,7 @@ def main():
 
     # figure and axis for plotting
     xmin        = 0   # [Hz]
-    xmax        = 300 # [Hz]
+    xmax        = 100 # [Hz]
     ymin        = 0   # [g]
     ymax        = 5  # [g]
     fig         = plt.figure(figsize = (10, 8))

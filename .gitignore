@@ -1,5 +1,7 @@
 .pio/*
+.vscode/*
 include/*
 test/*
 tags
 .vimspector.json
+data/*
