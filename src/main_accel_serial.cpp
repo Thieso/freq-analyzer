@@ -1,5 +1,7 @@
 /**
- * This program logs data from the Arduino ADC to a binary file.
+ * This program logs data from the Arduino ADC to a binary file. It is heavily
+ * inspired by the analog bin logger of the SdFat library which allows for fast
+ * logging on the Arduino platform
  *
  * Samples are logged at regular intervals. Each Sample consists of the ADC
  * values for the analog pins defined in the PIN_LIST array.  The pins numbers
@@ -19,7 +21,6 @@
  *
  * Data is written to the file using a SD multiple block write command.
  */
-#ifdef __AVR__
 #include <SPI.h>
 #include "SdFat.h"
 #include "FreeStack.h"
@@ -27,7 +28,9 @@
 
 //------------------------------------------------------------------------------
 // define analog pin of accelerometer input
-#define ACCEL_PIN 1
+#define ACCEL_PIN_Z 1
+#define ACCEL_PIN_Y 2
+#define ACCEL_PIN_X 3
 // define pin for button to start and stop logging
 #define BUTTON_PIN 7
 // define pin for LED that indicates logging activity
@@ -36,7 +39,7 @@
 //------------------------------------------------------------------------------
 // Analog pin number list for a sample.  Pins may be in any order and pin
 // numbers may be repeated.
-const uint8_t PIN_LIST[] = {ACCEL_PIN};
+const uint8_t PIN_LIST[] = {ACCEL_PIN_Z, ACCEL_PIN_Y, ACCEL_PIN_X};
 //------------------------------------------------------------------------------
 // Sample rate in samples per second.
 const float SAMPLE_RATE = 2000; // Must be 0.25 or greater.
@@ -91,7 +94,7 @@ const uint32_t FILE_BLOCK_COUNT = 256000;
 // Digital pin to indicate an error, set to -1 if not used.
 // The led blinks for fatal errors. The led goes on solid for SD write
 // overrun errors and logging continues.
-const int8_t ERROR_LED_PIN = 3;
+const int8_t ERROR_LED_PIN = -1;
 
 // SD chip select pin.
 const uint8_t SD_CS_PIN = SS;
@@ -937,8 +940,4 @@ void loop(void)
 
     // turn off logging LED
     digitalWrite(LOGGING_LED, LOW);
-
 }
-#else // __AVR__
-#error This program is only for AVR.
-#endif // __AVR__
