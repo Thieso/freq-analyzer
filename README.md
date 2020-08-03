@@ -20,9 +20,13 @@ the time series of the total acceleration and the below plot shows the short
 time Fourier transform (STFT) up to 250 Hz. 
 As can be seen in the STFT, there are several distinct frequencies at which the
 license plate is excited. These often have harmonic dependencies between them.
+The modulation of the frequencies correspond to changes in motor RPM. Higher
+motor RPMs show higher frequencies as expected and also higher vibration
+amplitudes.
+
 Since the frequencies show a lot of modulation, a passive way to mitigate the
 vibrations needs to cover a broad frequency range. Alternatively, active
-measures can be taken to reduce the vibrations. 
+measures can be taken to reduce the vibrations such as dynamic shakers. 
 
 ![](./results/visualized_data_Total.jpg)
 
