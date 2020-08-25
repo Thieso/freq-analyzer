@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import scipy.fftpack
 import struct
 import copy
-import scipy.integrate as integrate
 import os
 from scipy import signal
 
